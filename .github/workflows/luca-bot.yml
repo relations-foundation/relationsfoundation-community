@@ -1,0 +1,172 @@
+name: Luca Bot — Discussion Reply
+
+# Lives here (not in relationsfoundation.org) because GitHub Actions
+# discussion/discussion_comment events only trigger workflows defined in the
+# same repo where the discussion happens — and discussions moved here
+# 2026-07-20 so relationsfoundation.org could go private without breaking
+# giscus (giscus requires the mapped repo to be public). See
+# relationsfoundation.org/AGENTS.md § Luca Bot Integration for the full
+# picture; PR creation still targets relationsfoundation.org via
+# WEBSITE_REPO_OWNER/WEBSITE_REPO_NAME in github_apply.py.
+
+on:
+  discussion:
+    types: [created]
+  discussion_comment:
+    types: [created]
+
+permissions:
+  discussions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+
+  # ── reply ─────────────────────────────────────────────────────────────────
+  # Fires when @luca is mentioned in a new discussion or any comment.
+  reply:
+    runs-on: ubuntu-latest
+    if: |
+      github.actor != 'github-actions[bot]' && (
+        contains(github.event.comment.body, '@luca') ||
+        contains(github.event.discussion.body, '@luca')
+      )
+
+    steps:
+      - name: Checkout website repo
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: tvc-amaffei/relationsfoundation.org
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Checkout luca-bot
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: tvc-amaffei/luca-bot
+          path: luca-bot
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install anthropic
+        working-directory: luca-bot
+
+      - name: Run Luca reply
+        working-directory: luca-bot
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCUSSION_NODE_ID: ${{ github.event.discussion.node_id }}
+          DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          TRIGGERING_BODY: ${{ github.event.comment.body || github.event.discussion.body }}
+          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          WEBSITE_ROOT: ${{ github.workspace }}
+        run: python github_discussion.py
+
+  # ── apply ─────────────────────────────────────────────────────────────────
+  # Fires when tvc-amaffei posts "/luca apply".
+  # Synthesises the full thread into a website PR; archives the discussion.
+  apply:
+    runs-on: ubuntu-latest
+    if: |
+      github.actor == 'tvc-amaffei' &&
+      github.event_name == 'discussion_comment' &&
+      startsWith(github.event.comment.body, '/luca apply')
+
+    steps:
+      - name: Checkout website repo
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: tvc-amaffei/relationsfoundation.org
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Checkout luca-bot
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: tvc-amaffei/luca-bot
+          path: luca-bot
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install anthropic
+        working-directory: luca-bot
+
+      - name: Run Luca apply
+        working-directory: luca-bot
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LUCA_BOT_PAT: ${{ secrets.LUCA_BOT_PAT }}
+          DISCUSSION_NODE_ID: ${{ github.event.discussion.node_id }}
+          DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          TRIGGERING_BODY: ${{ github.event.comment.body }}
+          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          WEBSITE_ROOT: ${{ github.workspace }}
+        run: python github_apply.py
+
+  # ── capture ───────────────────────────────────────────────────────────────
+  # Fires when tvc-amaffei posts "/luca capture".
+  # Synthesises the thread into a community-qa.md entry; opens PR on luca-bot.
+  capture:
+    runs-on: ubuntu-latest
+    if: |
+      github.actor == 'tvc-amaffei' &&
+      github.event_name == 'discussion_comment' &&
+      startsWith(github.event.comment.body, '/luca capture')
+
+    steps:
+      - name: Checkout website repo
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: tvc-amaffei/relationsfoundation.org
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Checkout luca-bot
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: tvc-amaffei/luca-bot
+          path: luca-bot
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install anthropic
+        working-directory: luca-bot
+
+      - name: Run Luca capture
+        working-directory: luca-bot
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LUCA_BOT_PAT: ${{ secrets.LUCA_BOT_PAT }}
+          DISCUSSION_NODE_ID: ${{ github.event.discussion.node_id }}
+          DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          TRIGGERING_BODY: ${{ github.event.comment.body }}
+          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          WEBSITE_ROOT: ${{ github.workspace }}
+        run: python github_capture.py
