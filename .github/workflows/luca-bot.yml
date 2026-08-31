@@ -1,4 +1,4 @@
-name: Luca Bot — Discussion Reply
+name: Luca Bot
 
 # Lives here (not in relationsfoundation.org) because GitHub Actions
 # discussion/discussion_comment events only trigger workflows defined in the
@@ -70,6 +70,61 @@ jobs:
           ACTOR: ${{ github.actor }}
           WEBSITE_ROOT: ${{ github.workspace }}
         run: python github_discussion.py
+
+  # ── suggest ───────────────────────────────────────────────────────────────
+  # Fires on any new discussion/comment that is NOT an @luca mention, NOT a
+  # /luca command, and NOT a review-pass phrase. Classifies the comment and,
+  # if it proposes a concrete page change, opens/updates a `luca-suggestion`
+  # issue on relationsfoundation.org. See luca-bot#19.
+  suggest:
+    runs-on: ubuntu-latest
+    if: |
+      github.actor != 'github-actions[bot]' &&
+      !contains(github.event.comment.body, '@luca') &&
+      !contains(github.event.discussion.body, '@luca') &&
+      !startsWith(github.event.comment.body, '/luca') &&
+      !contains(github.event.comment.body, 'reviewed #') &&
+      !contains(github.event.discussion.body, 'reviewed #')
+
+    steps:
+      - name: Checkout website repo
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: relations-foundation/relationsfoundation.org
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Checkout luca-bot
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: relations-foundation/luca-bot
+          path: luca-bot
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install anthropic
+        working-directory: luca-bot
+
+      - name: Run Luca suggest
+        working-directory: luca-bot
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LUCA_BOT_PAT: ${{ secrets.LUCA_BOT_PAT }}
+          DISCUSSION_NODE_ID: ${{ github.event.discussion.node_id }}
+          DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          TRIGGERING_BODY: ${{ github.event.comment.body || github.event.discussion.body }}
+          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          WEBSITE_ROOT: ${{ github.workspace }}
+        run: python github_suggest.py
 
   # ── apply ─────────────────────────────────────────────────────────────────
   # Fires when tvc-amaffei posts "/luca apply".
@@ -170,3 +225,46 @@ jobs:
           ACTOR: ${{ github.actor }}
           WEBSITE_ROOT: ${{ github.workspace }}
         run: python github_capture.py
+
+  # ── review-tick ───────────────────────────────────────────────────────────
+  # Fires when a comment (or a first comment, arriving as a `discussion` event)
+  # contains the review-pass phrase "<initials> reviewed #N". Ticks that page's
+  # box in review-pass issue #N and closes it when every box is ticked. The
+  # regex + reviewer allowlist live in github_review.py; this `contains()` is a
+  # coarse pre-filter only. See luca-bot#19 § D7/D8.
+  review-tick:
+    runs-on: ubuntu-latest
+    if: |
+      github.actor != 'github-actions[bot]' && (
+        contains(github.event.comment.body, 'reviewed #') ||
+        contains(github.event.discussion.body, 'reviewed #')
+      )
+
+    steps:
+      - name: Checkout luca-bot
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: relations-foundation/luca-bot
+          token: ${{ secrets.LUCA_BOT_PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Run Luca review-tick
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LUCA_BOT_PAT: ${{ secrets.LUCA_BOT_PAT }}
+          DISCUSSION_NODE_ID: ${{ github.event.discussion.node_id }}
+          DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          TRIGGERING_BODY: ${{ github.event.comment.body || github.event.discussion.body }}
+          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
+          COMMENT_NODE_ID: ${{ github.event.comment.node_id }}
+          ACTOR: ${{ github.actor }}
+        run: python github_review.py
