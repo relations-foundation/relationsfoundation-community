@@ -95,6 +95,7 @@ jobs:
       github.event_name == 'discussion_comment' &&
       github.actor != 'github-actions[bot]' &&
       github.actor != 'giscus[bot]' &&
+      !contains(github.event.comment.body, '<!-- luca-bot -->') &&
       !contains(github.event.comment.body, '@luca') &&
       !startsWith(github.event.comment.body, '/luca') &&
       !contains(github.event.comment.body, 'reviewed #')
@@ -251,6 +252,7 @@ jobs:
       github.event_name == 'discussion_comment' &&
       github.actor != 'github-actions[bot]' &&
       github.actor != 'giscus[bot]' &&
+      !contains(github.event.comment.body, '<!-- luca-bot -->') &&
       contains(github.event.comment.body, 'reviewed #')
 
     steps:
