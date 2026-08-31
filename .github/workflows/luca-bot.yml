@@ -81,10 +81,11 @@ jobs:
         run: python github_discussion.py
 
   # ── suggest ───────────────────────────────────────────────────────────────
-  # Fires on any new discussion/comment that is NOT an @luca mention, NOT a
-  # /luca command, and NOT a review-pass phrase. Classifies the comment and,
-  # if it proposes a concrete page change, opens/updates a `luca-suggestion`
-  # issue on relationsfoundation.org. See luca-bot#19.
+  # Fires on any new comment that is NOT an @luca mention, NOT a /luca command,
+  # and NOT a review-pass phrase. Classifies it and, if it proposes a concrete
+  # page change, opens (or supersedes) a PR on relationsfoundation.org with the
+  # change drafted — merge = accept, close = reject. See luca-bot#19
+  # (Revision 2: PR directly, no intermediate issue).
   suggest:
     runs-on: ubuntu-latest
     # discussion_comment only: giscus posts the user's text as a comment, not
