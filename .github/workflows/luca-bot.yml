@@ -20,6 +20,15 @@ permissions:
   contents: write
   pull-requests: write
 
+# Serialise all jobs for one discussion. giscus's first comment on a page
+# fires a `discussion` (created) event AND a `discussion_comment` (created)
+# event ~2s apart; without this they run concurrently and can each create a
+# duplicate suggestion issue before either sees the other's. Non-cancelling
+# so an in-flight run finishes before the next starts.
+concurrency:
+  group: luca-bot-${{ github.event.discussion.number }}
+  cancel-in-progress: false
+
 jobs:
 
   # ── reply ─────────────────────────────────────────────────────────────────
@@ -78,13 +87,16 @@ jobs:
   # issue on relationsfoundation.org. See luca-bot#19.
   suggest:
     runs-on: ubuntu-latest
+    # discussion_comment only: giscus posts the user's text as a comment, not
+    # the discussion body. The `discussion` (created) event carries only a
+    # giscus placeholder body and is actored by giscus[bot].
     if: |
+      github.event_name == 'discussion_comment' &&
       github.actor != 'github-actions[bot]' &&
+      github.actor != 'giscus[bot]' &&
       !contains(github.event.comment.body, '@luca') &&
-      !contains(github.event.discussion.body, '@luca') &&
       !startsWith(github.event.comment.body, '/luca') &&
-      !contains(github.event.comment.body, 'reviewed #') &&
-      !contains(github.event.discussion.body, 'reviewed #')
+      !contains(github.event.comment.body, 'reviewed #')
 
     steps:
       - name: Checkout website repo
@@ -235,10 +247,10 @@ jobs:
   review-tick:
     runs-on: ubuntu-latest
     if: |
-      github.actor != 'github-actions[bot]' && (
-        contains(github.event.comment.body, 'reviewed #') ||
-        contains(github.event.discussion.body, 'reviewed #')
-      )
+      github.event_name == 'discussion_comment' &&
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'giscus[bot]' &&
+      contains(github.event.comment.body, 'reviewed #')
 
     steps:
       - name: Checkout luca-bot
